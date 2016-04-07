@@ -1,0 +1,163 @@
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+
+
+
+public class TfIdf {
+
+	 
+	/**
+	 * WordFrequenceInDocMapper implements the Job 1 specification for the TF-IDF algorithm
+	 */
+	public static class Map extends Mapper<LongWritable, Text, Text, IntWritable> {
+	 
+		public static Set<String> googleStopwords;
+		
+		static {
+	        googleStopwords = new HashSet<String>();
+	        googleStopwords.add("I"); googleStopwords.add("a");
+	        googleStopwords.add("about"); googleStopwords.add("an");
+	        googleStopwords.add("are"); googleStopwords.add("as");
+	        googleStopwords.add("at"); googleStopwords.add("be");
+	        googleStopwords.add("by"); googleStopwords.add("com");
+	        googleStopwords.add("de"); googleStopwords.add("en");
+	        googleStopwords.add("for"); googleStopwords.add("from");
+	        googleStopwords.add("how"); googleStopwords.add("in");
+	        googleStopwords.add("is"); googleStopwords.add("it");
+	        googleStopwords.add("la"); googleStopwords.add("of");
+	        googleStopwords.add("on"); googleStopwords.add("or");
+	        googleStopwords.add("that"); googleStopwords.add("the");
+	        googleStopwords.add("this"); googleStopwords.add("to");
+	        googleStopwords.add("was"); googleStopwords.add("what");
+	        googleStopwords.add("when"); googleStopwords.add("where");
+	        googleStopwords.add("who"); googleStopwords.add("will");
+	        googleStopwords.add("with"); googleStopwords.add("and");
+	        googleStopwords.add("the"); googleStopwords.add("www");
+	    }
+	 
+	    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+	        Pattern p = Pattern.compile("\\w+");
+	        Matcher m = p.matcher(value.toString());
+	        String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+	        StringBuilder valueBuilder;
+	        while (m.find()) {
+	        	valueBuilder = new StringBuilder();
+	            String matchedKey = m.group().toLowerCase();
+	            if (!Character.isLetter(matchedKey.charAt(0)) || Character.isDigit(matchedKey.charAt(0))
+	                    || googleStopwords.contains(matchedKey) || matchedKey.contains("_")) {
+	                continue;
+	            }
+	            valueBuilder.append(matchedKey);
+	            valueBuilder.append("@");
+	            valueBuilder.append(fileName);
+	            // emit the partial <k,v>
+	            context.write(new Text(valueBuilder.toString()), new IntWritable(1));
+	        }
+	    }
+	}
+	
+	public static class Reduce extends Reducer<Text, IntWritable, Text, IntWritable> {
+	    public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+	 
+	        int sum = 0;
+	        for (IntWritable val : values) {
+	            sum += val.get();
+	        }
+	        //write the key and the adjusted value (removing the last comma)
+	        context.write(key, new IntWritable(sum));
+	    }
+	}
+	
+	//job2
+	 
+	public static class Map2 extends Mapper<LongWritable, Text, Text, Text> {
+	 
+	    /**
+	     * @param key is the byte offset of the current line in the file;
+	     * @param value is the line from the file
+	     * @param context
+	     *
+	     *     PRE-CONDITION: aa@leornardo-davinci-all.txt    1
+	     *                    aaron@all-shakespeare   98
+	     *                    ab@leornardo-davinci-all.txt    3
+	     *
+	     *     POST-CONDITION: Output <"all-shakespeare", "aaron=98"> pairs
+	     */
+	    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+	        String[] wordAndDocCounter = value.toString().split("\t");
+	        String[] wordAndDoc = wordAndDocCounter[0].split("@");
+	        context.write(new Text(wordAndDoc[1]), new Text(wordAndDoc[0] + "=" + wordAndDocCounter[1]));
+	    }
+	}
+	
+	public static class Reduce2 extends Reducer<Text, Text, Text, Text> {
+	 
+	    /**
+	     * @param key is the key of the mapper
+	     * @param values are all the values aggregated during the mapping phase
+	     * @param context contains the context of the job run
+	     *
+	     *        PRE-CONDITION: receive a list of <document, ["word=n", "word-b=x"]>
+	     *            pairs <"a.txt", ["word1=3", "word2=5", "word3=5"]>
+	     *
+	     *       POST-CONDITION: <"word1@a.txt, 3/13">,
+	     *            <"word2@a.txt, 5/13">
+	     */
+	    protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+	        int sumOfWordsInDocument = 0;
+	        Map<String, Integer> tempCounter = new HashMap<String, Integer>();
+	        for (Text val : values) {
+	            String[] wordCounter = val.toString().split("=");
+	            tempCounter.put(wordCounter[0], Integer.valueOf(wordCounter[1]));
+	            sumOfWordsInDocument += Integer.parseInt(val.toString().split("=")[1]);
+	        }
+	        for (String wordKey : tempCounter.keySet()) {
+	            context.write(new Text(wordKey + "@" + key.toString()), new Text(tempCounter.get(wordKey) + "/"
+	                    + sumOfWordsInDocument));
+	        }
+	    }
+	}
+	
+	public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+		// TODO Auto-generated method stub
+		Configuration conf = new Configuration();
+        
+        @SuppressWarnings("deprecation")
+		Job job = new Job(conf, "TfIdf");
+        
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+        
+        job.setJarByClass(TfIdf.class);
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+        job.setCombinerClass(Reduce.class);
+ 
+        job.setInputFormatClass(TextInputFormat.class);
+        job.setOutputFormatClass(TextOutputFormat.class);
+        
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+ 
+        job.waitForCompletion(true);
+	}
+
+}

@@ -1,0 +1,22 @@
+!SESSION 2016-04-04 23:04:51.986 -----------------------------------------------
+eclipse.buildId=M20100909-0800
+java.version=1.6.0_38
+java.vendor=Sun Microsystems Inc.
+BootLoader constants: OS=linux, ARCH=x86, WS=gtk, NL=en_US
+Command-line arguments:  -os linux -ws gtk -arch x86 -data /root/CloudRepo
+
+!ENTRY org.eclipse.ui.browser 2 0 2016-04-04 23:55:38.310
+!MESSAGE Internal browser is not available: No more handles [Unknown Mozilla path (MOZILLA_FIVE_HOME not set)]
+!SESSION 2016-04-05 00:18:06.671 -----------------------------------------------
+eclipse.buildId=4.5.2.M20160212-1500
+java.version=1.7.0_99
+java.vendor=Oracle Corporation
+BootLoader constants: OS=linux, ARCH=x86, WS=gtk, NL=en_US
+Framework arguments:  -product org.eclipse.epp.package.java.product -product org.eclipse.epp.package.java.product
+Command-line arguments:  -os linux -ws gtk -arch x86 -product org.eclipse.epp.package.java.product -data /root/CloudRepo -product org.eclipse.epp.package.java.product
+
+!ENTRY org.eclipse.ui 1 1 2016-04-05 00:18:17.925
+!MESSAGE Workbench migration started
+
+!ENTRY org.eclipse.ui 1 1 2016-04-05 00:18:19.163
+!MESSAGE Workbench migration finished
